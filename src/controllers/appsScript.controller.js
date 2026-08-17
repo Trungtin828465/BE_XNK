@@ -1,4 +1,10 @@
 const axios = require('axios');
+const emailjs = require('@emailjs/nodejs');
+
+emailjs.init({
+  publicKey: process.env.EMAILJS_PUBLIC_KEY,
+  privateKey: process.env.EMAILJS_PRIVATE_KEY
+});
 
 function getAppsScriptUrl() {
   const url = process.env.APPSCRIPT_URL;
@@ -119,8 +125,86 @@ async function getSheetTotal(req, res) {
   }
 }
 
+async function getPIFiles(req, res) {
+  try {
+    const data = await callAppsScript({
+      action: 'getPIFiles',
+      getPIFiles: req.query.getPIFiles
+    });
+
+    return res.status(200).json(data);
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Cannot connect to Apps Script',
+      error: error.message
+    });
+  }
+}
+
+async function sendMissingDocumentEmail(req, res) {
+  try {
+    const { to_email, to_name, order_code, missing_docs } = req.body;
+
+    if (!to_email || !order_code || !missing_docs) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing to_email, to_name, order_code, or missing_docs'
+      });
+    }
+
+    const serviceId = process.env.EMAILJS_SERVICE_ID;
+    const templateId = process.env.EMAILJS_TEMPLATE_ID;
+    const publicKey = process.env.EMAILJS_PUBLIC_KEY;
+    const privateKey = process.env.EMAILJS_PRIVATE_KEY;
+
+    if (!serviceId || !templateId || !publicKey || !privateKey) {
+      return res.status(500).json({
+        success: false,
+        message: 'Missing EmailJS environment variables'
+      });
+    }
+
+    const result = await emailjs.send(
+      serviceId,
+      templateId,
+      {
+        to_email,
+        to_name,
+        order_code,
+        missing_docs
+      },
+      {
+        publicKey,
+        privateKey
+      }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Email sent successfully',
+      data: result
+    });
+  } catch (error) {
+    const detail = {
+      name: error.name,
+      status: error.status,
+      text: error.text,
+      message: error.message
+    };
+
+    return res.status(500).json({
+      success: false,
+      message: 'Cannot send email',
+      error: detail
+    });
+  }
+}
+
 module.exports = {
   updateAll,
   getSheetSummary,
-  getSheetTotal
+  getSheetTotal,
+  getPIFiles,
+  sendMissingDocumentEmail
 };
