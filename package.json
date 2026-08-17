@@ -12,7 +12,9 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@emailjs/nodejs": "^4.1.0",
     "axios": "^1.19.0",
+    "cors": "^2.8.6",
     "dotenv": "^16.6.1",
     "express": "^5.2.1"
   }
