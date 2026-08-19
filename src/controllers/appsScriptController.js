@@ -7,9 +7,14 @@ emailjs.init({
 });
 
 const appsScriptClient = axios.create({
-  timeout: 15000,
+  timeout: 30000,
+  maxRedirects: 10,
   headers: {
-    Accept: 'application/json',
+    'User-Agent':
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+    Accept:
+      'text/html,application/xhtml+xml,application/xml;q=0.9,application/json,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9',
   },
 });
 
@@ -20,11 +25,12 @@ function getAppsScriptUrl() {
     throw new Error('Missing APPSCRIPT_URL in .env');
   }
 
-  return url;
+  return url.trim();
 }
 
 async function callAppsScript(params = {}) {
-  const url = new URL(getAppsScriptUrl());
+  const baseUrl = getAppsScriptUrl();
+  const url = new URL(baseUrl);
 
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') {
@@ -32,18 +38,35 @@ async function callAppsScript(params = {}) {
     }
   });
 
+  const targetUrl = url.toString();
+
   try {
-    const response = await appsScriptClient.get(url.toString(), {
+    const response = await appsScriptClient.get(targetUrl, {
       responseType: 'text',
+      maxRedirects: 10,
+      validateStatus: (status) => status < 400,
     });
 
     if (typeof response.data === 'string') {
-      const text = response.data;
+      const text = response.data.trim();
 
-      if (text.includes('Sign in - Google Accounts')) {
+      if (
+        text.includes('Sign in - Google Accounts') ||
+        text.includes('accounts.google.com')
+      ) {
         return {
           success: false,
-          message: 'Apps Script requires Google Workspace sign-in',
+          message:
+            'Apps Script requires Google Workspace sign-in. Deploy as "Anyone can access".',
+        };
+      }
+
+      // Check if response is HTML (not JSON)
+      if (text.startsWith('<!DOCTYPE') || text.startsWith('<html')) {
+        return {
+          success: false,
+          message: 'Apps Script returned HTML instead of JSON. Check deployment settings.',
+          raw: text.substring(0, 500),
         };
       }
 
@@ -52,7 +75,7 @@ async function callAppsScript(params = {}) {
       } catch {
         return {
           success: false,
-          message: text,
+          message: text.substring(0, 1000),
         };
       }
     }
@@ -63,18 +86,20 @@ async function callAppsScript(params = {}) {
       const data = error.response.data;
       const text = typeof data === 'string' ? data : JSON.stringify(data);
 
-      if (text && text.includes('Sign in - Google Accounts')) {
+      if (
+        text &&
+        (text.includes('Sign in - Google Accounts') ||
+          text.includes('accounts.google.com'))
+      ) {
         return {
           success: false,
-          message: 'Apps Script requires Google Workspace sign-in',
+          message:
+            'Apps Script requires Google Workspace sign-in. Deploy as "Anyone can access".',
         };
       }
 
       return typeof data === 'string'
-        ? {
-            success: false,
-            message: data,
-          }
+        ? { success: false, message: data.substring(0, 1000) }
         : data;
     }
 
@@ -161,9 +186,9 @@ async function checkDriveAndUpdate(req, res) {
 }
 
 async function runCheckDriveAndUpdateJob() {
-  return callAppsScript({
-    action: 'checkDriveAndUpdate',
-  });
+  // return callAppsScript({
+  //   action: 'checkDriveAndUpdate',
+  // });
 }
 
 async function sendNotification(req, res) {
