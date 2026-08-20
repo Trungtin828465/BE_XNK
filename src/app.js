@@ -2,6 +2,7 @@ require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
+const axios = require('axios');
 const appsScriptRoutes = require('./routes/appsScriptRoutes');
 const authRouter = require('./routes/authRouter');
 
@@ -27,3 +28,21 @@ app.use((req, res) => {
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });
+
+// auto chạy hàm check log
+setInterval(async () => {
+  try {
+    console.log('Auto chạy hàm checkDriveAndUpdateJob (khởi động backend)');
+
+    const response = await axios.get(
+      `http://localhost:${port}/api/runCheckDriveAndUpdateJob`
+    );
+
+    console.log('gọi hàm auto thành công ', response.data);
+  } catch (error) {
+    console.error(
+      'Auto báo lỗi checkDriveAndUpdateJob error:',
+      error.response?.data || error.message
+    );
+  }
+}, 5 * 60 * 1000);
