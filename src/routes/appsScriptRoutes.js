@@ -8,6 +8,7 @@ router.get('/getSheetSummary', appsScriptController.getSheetSummary);
 router.get('/updateAll', appsScriptController.updateAll);
 router.get('/getPIFiles', appsScriptController.getPIFiles);
 router.get('/checkDriveAndUpdate', appsScriptController.checkDriveAndUpdate);
+router.get('/runCheckDriveAndUpdateJob', appsScriptController.runCheckDriveAndUpdateJob);
 router.post('/sendMissingDocumentEmail', appsScriptController.sendMissingDocumentEmail);
 router.get('/sendNotification', appsScriptController.sendNotification);
 

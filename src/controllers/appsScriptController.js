@@ -186,9 +186,9 @@ async function checkDriveAndUpdate(req, res) {
 }
 
 async function runCheckDriveAndUpdateJob() {
-  // return callAppsScript({
-  //   action: 'checkDriveAndUpdate',
-  // });
+  return callAppsScript({
+    action: 'checkDriveAndUpdate',
+  });
 }
 
 async function sendNotification(req, res) {
