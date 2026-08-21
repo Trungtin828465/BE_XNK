@@ -27,22 +27,21 @@ app.use((req, res) => {
 
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
+  // Tự động kiểm tra log và cập nhật notification mỗi 3 phút.
+  setInterval(async () => {
+    try {
+      console.log('Auto chạy hàm checkDriveAndUpdateJob');
+
+      const response = await axios.get(
+        `http://localhost:${port}/api/runCheckDriveAndUpdateJob`,
+      );
+
+      console.log('Gọi hàm auto thành công:', response.data);
+    } catch (error) {
+      console.error(
+        'Auto báo lỗi checkDriveAndUpdateJob:',
+        error.response?.data || error.message,
+      );
+    }
+  }, 3 * 60 * 1000);
 });
-
-// auto chạy hàm check log
-setInterval(async () => {
-  try {
-    console.log('Auto chạy hàm checkDriveAndUpdateJob (khởi động backend)');
-
-    const response = await axios.get(
-      `http://localhost:${port}/api/runCheckDriveAndUpdateJob`
-    );
-
-    console.log('gọi hàm auto thành công ', response.data);
-  } catch (error) {
-    console.error(
-      'Auto báo lỗi checkDriveAndUpdateJob error:',
-      error.response?.data || error.message
-    );
-  }
-}, 5 * 60 * 1000);
