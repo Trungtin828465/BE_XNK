@@ -11,5 +11,7 @@ router.get('/checkDriveAndUpdate', appsScriptController.checkDriveAndUpdate);
 router.get('/runCheckDriveAndUpdateJob', appsScriptController.runCheckDriveAndUpdateJob);
 router.post('/sendMissingDocumentEmail', appsScriptController.sendMissingDocumentEmail);
 router.get('/sendNotification', appsScriptController.sendNotification);
-
+// Kênh realtime cho UI: nhận event notification mỗi khi sheet thay đổi.
+router.get('/notifications/stream', appsScriptController.streamNotifications);
+router.put('/updateStatusNotification', appsScriptController.updateStatusNotification);
 module.exports = router;
