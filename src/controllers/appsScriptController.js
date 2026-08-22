@@ -180,6 +180,22 @@ async function getPIFiles(req, res) {
   }
 }
 
+async function getSheetSell(req, res) {
+  try {
+    const data = await callAppsScript({
+      action: 'getSheetSell',
+      getSheetSell: req.query.getSheetSell,
+    });
+    return res.status(200).json(data);
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Cannot connect to Apps Script',
+      error: error.message,
+    });
+  }
+}
+
 async function checkDriveAndUpdate(req, res) {
   try {
     const data = await callAppsScript({
@@ -532,6 +548,7 @@ module.exports = {
   getSheetSummary,
   getSheetTotal,
   getPIFiles,
+  getSheetSell,
   checkDriveAndUpdate,
   runCheckDriveAndUpdateJob,
   sendNotification,
@@ -539,4 +556,5 @@ module.exports = {
   runNotificationCycle,
   sendMissingDocumentEmail,
   updateStatusNotification,
+
 };
