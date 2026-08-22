@@ -43,5 +43,5 @@ app.listen(port, () => {
         error.response?.data || error.message,
       );
     }
-  }, 3 * 60 * 1000);
+  }, 300 * 60 * 1000);
 });
