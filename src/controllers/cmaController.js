@@ -75,6 +75,21 @@ function hasCmaCaptcha(page) {
   );
 }
 
+function attachSafeDialogHandler(page) {
+  page.on('dialog', async (dialog) => {
+    try {
+      await dialog.dismiss();
+    } catch (error) {
+      // Dialog có thể đã tự đóng trước khi Playwright xử lý.
+      if (!/No dialog is showing/i.test(error.message || '')) {
+        console.warn('[BROWSER_DIALOG] Không thể đóng dialog:', error.message);
+      }
+    }
+  });
+
+  return page;
+}
+
 async function openCmaTracking(req, res) {
   const bl = String(req.params.bl || '').trim();
 
@@ -100,7 +115,7 @@ async function openCmaTracking(req, res) {
       });
     }
 
-    const page = await contexts[0].newPage();
+    const page = attachSafeDialogHandler(await contexts[0].newPage());
     await page.goto(CMA_TRACKING_URL, {
       waitUntil: 'domcontentloaded',
       timeout: PAGE_TIMEOUT,
@@ -154,4 +169,8 @@ async function openCmaTracking(req, res) {
   }
 }
 
-module.exports = { openCmaTracking, connectToChrome };
+module.exports = {
+  openCmaTracking,
+  connectToChrome,
+  attachSafeDialogHandler,
+};
