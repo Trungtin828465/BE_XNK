@@ -1,6 +1,7 @@
 const express = require('express');
 const appsScriptController = require('../controllers/appsScriptController');
-
+const { openCmaTracking } = require('../controllers/cmaController');
+const { getYangMingTracking } = require('../controllers/yangMingController');
 const router = express.Router();
 
 router.get('/getSheetTotal', appsScriptController.getSheetTotal);
@@ -15,4 +16,8 @@ router.get('/sendNotification', appsScriptController.sendNotification);
 // Kênh realtime cho UI: nhận event notification mỗi khi sheet thay đổi.
 router.get('/notifications/stream', appsScriptController.streamNotifications);
 router.put('/updateStatusNotification', appsScriptController.updateStatusNotification);
+router.get('/cma/:bl', openCmaTracking);
+router.get('/yangming/:trackingNumber', getYangMingTracking);
+router.get('/yangming/:trackingNumber', getYangMingTracking);
+
 module.exports = router;
