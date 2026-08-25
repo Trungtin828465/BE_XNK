@@ -1,4 +1,7 @@
-const { connectToChrome } = require('./cmaController');
+const {
+  connectToChrome,
+  attachSafeDialogHandler,
+} = require('./cmaController');
 
 const CKLINE_TRACKING_URL = 'https://es.ckline.co.kr/';
 const PAGE_TIMEOUT = 60000;
@@ -27,12 +30,22 @@ async function getCKLineTracking(req, res) {
       });
     }
 
-    const page = await contexts[0].newPage();
+    const page = attachSafeDialogHandler(await contexts[0].newPage());
+
+    await page.addInitScript(() => {
+      window.addEventListener(
+        'beforeunload',
+        (event) => event.stopImmediatePropagation(),
+        true,
+      );
+    });
 
     await page.goto(CKLINE_TRACKING_URL, {
       waitUntil: 'domcontentloaded',
       timeout: PAGE_TIMEOUT,
     });
+
+    await page.waitForTimeout(1000);
 
     const trackingInput = page
       .locator(
@@ -55,6 +68,7 @@ async function getCKLineTracking(req, res) {
     );
 
     if (await searchButton.count()) {
+      await page.bringToFront();
       await searchButton.click({ timeout: PAGE_TIMEOUT });
     } else {
       const submitButton = page
@@ -75,7 +89,7 @@ async function getCKLineTracking(req, res) {
         throw new Error('Không tìm thấy nút Search trên trang CK Line.');
       }
 
-      await submitButton.click({ timeout: PAGE_TIMEOUT });
+      await submitButton.evaluate((element) => element.click());
     }
 
     await page.bringToFront();

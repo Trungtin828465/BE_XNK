@@ -4,6 +4,7 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const appsScriptRoutes = require('./routes/appsScriptRoutes');
+const trackingRouter = require('./routes/trackingRouter');
 const authRouter = require('./routes/authRouter');
 
 const app = express();
@@ -16,6 +17,9 @@ app.use(
 );
 app.use(express.json());
 app.use('/api', appsScriptRoutes);
+// Giữ endpoint cũ /api/... và bổ sung nhóm endpoint rõ ràng /api/tracking/...
+app.use('/api', trackingRouter);
+app.use('/api/tracking', trackingRouter);
 app.use('/api/auth', authRouter);
 
 app.use((req, res) => {
