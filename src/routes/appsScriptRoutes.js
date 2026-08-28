@@ -4,6 +4,16 @@ const router = express.Router();
 
 router.get('/getSheetTotal', appsScriptController.getSheetTotal);
 router.get('/getSheetSummary', appsScriptController.getSheetSummary);
+router.get('/getSheetNoti', appsScriptController.getSheetNoti);
+router.get('/getFolderById', appsScriptController.getFolderById);
+router.get('/getArchivedDocuments', appsScriptController.getArchivedDocuments);
+router.get('/checkDocumentsAndSaveStatus', appsScriptController.checkDocumentsAndSaveStatus);
+router.post('/checkDocumentsAndSaveStatus', appsScriptController.checkDocumentsAndSaveStatus);
+router.get('/updateNotifications', appsScriptController.updateNotifications);
+router.post('/updateNotifications', appsScriptController.updateNotifications);
+router.get('/moveCompletedOrder', appsScriptController.moveCompletedOrder);
+router.post('/moveCompletedOrder', appsScriptController.moveCompletedOrder);
+router.post('/uploadDocument', appsScriptController.uploadDocument);
 router.get('/updateAll', appsScriptController.updateAll);
 router.get('/getPIFiles', appsScriptController.getPIFiles);
 router.get('/getSheetSell', appsScriptController.getSheetSell);
