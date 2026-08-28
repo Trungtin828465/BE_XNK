@@ -2,7 +2,6 @@ require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
-const axios = require('axios');
 const appsScriptRoutes = require('./routes/appsScriptRoutes');
 const trackingRouter = require('./routes/trackingRouter');
 const authRouter = require('./routes/authRouter');
@@ -15,7 +14,7 @@ app.use(
     origin: 'http://localhost:3000',
   }),
 );
-app.use(express.json());
+app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '25mb' }));
 app.use('/api', appsScriptRoutes);
 // Giữ endpoint cũ /api/... và bổ sung nhóm endpoint rõ ràng /api/tracking/...
 app.use('/api', trackingRouter);
@@ -31,21 +30,4 @@ app.use((req, res) => {
 
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
-  // Tự động kiểm tra log và cập nhật notification mỗi 3 phút.
-  setInterval(async () => {
-    try {
-      console.log('Auto chạy hàm checkDriveAndUpdateJob');
-
-      const response = await axios.get(
-        `http://localhost:${port}/api/runCheckDriveAndUpdateJob`,
-      );
-
-      console.log('Gọi hàm auto thành công:', response.data);
-    } catch (error) {
-      console.error(
-        'Auto báo lỗi checkDriveAndUpdateJob:',
-        error.response?.data || error.message,
-      );
-    }
-  }, 300 * 60 * 1000);
 });
