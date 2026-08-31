@@ -32,6 +32,28 @@ const moveCompletedOrder = actionHandler('moveCompletedOrder', {
   method: 'POST', params: (req) => ({ orderCode: req.query.orderCode || req.body?.orderCode }),
 });
 
+async function editSummary(req, res) {
+  const { orderCode, order_code: legacyOrderCode, data, updates } = req.body || {};
+  const resolvedOrderCode = orderCode || legacyOrderCode;
+  const changes = data || updates;
+
+  if (!resolvedOrderCode) {
+    return res.status(400).json({ success: false, message: 'Thiếu orderCode' });
+  }
+  if (!changes || typeof changes !== 'object' || Array.isArray(changes)) {
+    return res.status(400).json({ success: false, message: 'Thiếu dữ liệu cần cập nhật' });
+  }
+
+  try {
+    const result = await appsScriptService.call('editSummary', {}, 'POST', {
+      action: 'editSummary',
+      orderCode: resolvedOrderCode,
+      data: changes,
+    });
+    return res.status(200).json(result);
+  } catch (error) { return sendServiceError(res, error, 'Không thể cập nhật dữ liệu Summary'); }
+}
+
 async function uploadDocument(req, res) {
   const { orderCode, documentCode, fileName, fileData } = req.body || {};
   if (!orderCode || !documentCode || !fileName || !fileData) {
@@ -86,7 +108,7 @@ const updateStatusNotification = actionHandler('updateStatusNotification', { met
 module.exports = {
   getSheetTotal, getSheetSummary, getSheetNoti, getFolderById, getArchivedDocuments,
   checkDocumentsAndSaveStatus, updateNotifications, moveCompletedOrder,
-  uploadDocument,
+  uploadDocument, editSummary,
   sendNotification, streamNotifications: notificationService.stream,
   sendMissingDocumentEmail, runCheckDocumentsJob,
   updateAll, getPIFiles, getSheetSell, checkDriveAndUpdate,

@@ -14,6 +14,7 @@ router.post('/updateNotifications', appsScriptController.updateNotifications);
 router.get('/moveCompletedOrder', appsScriptController.moveCompletedOrder);
 router.post('/moveCompletedOrder', appsScriptController.moveCompletedOrder);
 router.post('/uploadDocument', appsScriptController.uploadDocument);
+router.post('/editSummary', appsScriptController.editSummary);
 router.get('/updateAll', appsScriptController.updateAll);
 router.get('/getPIFiles', appsScriptController.getPIFiles);
 router.get('/getSheetSell', appsScriptController.getSheetSell);
