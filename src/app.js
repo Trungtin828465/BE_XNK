@@ -9,11 +9,14 @@ const authRouter = require('./routes/authRouter');
 const app = express();
 const port = process.env.PORT || 5000;
 
-app.use(
-  cors({
-    origin: 'http://localhost:3000',
-  }),
-);
+// Cho phép Frontend ở localhost, Render hoặc domain khác gọi API.
+// Không dùng credentials/cookie nên có thể mở CORS cho mọi origin.
+app.use(cors({
+  origin: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+}));
+app.options(/.*/, cors());
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '25mb' }));
 app.use('/api', appsScriptRoutes);
 // Giữ endpoint cũ /api/... và bổ sung nhóm endpoint rõ ràng /api/tracking/...
