@@ -14,7 +14,7 @@ async function login(req, res) {
     const result = await pool.query(
       `
       SELECT id, name, username, password, role
-      FROM users
+      FROM public.users
       WHERE username = $1
       `,
       [username]
