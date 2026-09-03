@@ -31,6 +31,7 @@ const updateNotifications = actionHandler('updateNotifications', { method: 'POST
 const moveCompletedOrder = actionHandler('moveCompletedOrder', {
   method: 'POST', params: (req) => ({ orderCode: req.query.orderCode || req.body?.orderCode }),
 });
+const getSheetReturnItem = actionHandler('getSheetReturnItem');
 
 async function editSummary(req, res) {
   const { orderCode, order_code: legacyOrderCode, data, updates } = req.body || {};
@@ -52,6 +53,16 @@ async function editSummary(req, res) {
     });
     return res.status(200).json(result);
   } catch (error) { return sendServiceError(res, error, 'Không thể cập nhật dữ liệu Summary'); }
+}
+
+async function editReturnItem(req, res) {
+  try {
+    const result = await appsScriptService.call('editReturnItem', {}, 'POST', {
+      ...(req.body || {}),
+      action: 'editReturnItem',
+    });
+    return res.status(200).json(result);
+  } catch (error) { return sendServiceError(res, error, 'Không thể cập nhật bảng hàng rỗng'); }
 }
 
 async function uploadDocument(req, res) {
@@ -107,8 +118,9 @@ const updateStatusNotification = actionHandler('updateStatusNotification', { met
 
 module.exports = {
   getSheetTotal, getSheetSummary, getSheetNoti, getFolderById, getArchivedDocuments,
-  checkDocumentsAndSaveStatus, updateNotifications, moveCompletedOrder,
+  getSheetReturnItem, checkDocumentsAndSaveStatus, updateNotifications, moveCompletedOrder,
   uploadDocument, editSummary,
+  editReturnItem,
   sendNotification, streamNotifications: notificationService.stream,
   sendMissingDocumentEmail, runCheckDocumentsJob,
   updateAll, getPIFiles, getSheetSell, checkDriveAndUpdate,
