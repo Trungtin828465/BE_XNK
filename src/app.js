@@ -5,6 +5,7 @@ const cors = require('cors');
 const appsScriptRoutes = require('./routes/appsScriptRoutes');
 const trackingRouter = require('./routes/trackingRouter');
 const authRouter = require('./routes/authRouter');
+const ocrRoutes = require('./routes/ocrRoutes');
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -23,6 +24,7 @@ app.use('/api', appsScriptRoutes);
 app.use('/api', trackingRouter);
 app.use('/api/tracking', trackingRouter);
 app.use('/api/auth', authRouter);
+app.use('/api/ocr', ocrRoutes);
 
 app.use((req, res) => {
   res.status(404).json({
