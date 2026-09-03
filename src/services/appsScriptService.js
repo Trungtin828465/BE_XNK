@@ -61,7 +61,6 @@ const appsScriptService = {
   getFolderById: (folderId) => callAppsScript('getFolderById', { folderId, id: folderId }),
   getArchivedDocuments: (orderCode) => callAppsScript('getArchivedDocuments', { orderCode }),
   checkDocumentsAndSaveStatus: (method) => callAppsScript('checkDocumentsAndSaveStatus', {}, method),
-  updateNotifications: (method) => callAppsScript('updateNotifications', {}, method),
   moveCompletedOrder: (orderCode, method) => callAppsScript('moveCompletedOrder', { orderCode }, method),
 };
 

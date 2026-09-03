@@ -1,6 +1,5 @@
 const appsScriptService = require('../services/appsScriptService');
 const emailService = require('../services/emailService');
-const notificationService = require('../services/notificationService');
 
 function sendServiceError(res, error, message = 'Không thể kết nối Apps Script') {
   return res.status(error.code === 'EMAIL_CONFIG_MISSING' ? 500 : 502).json({
@@ -27,7 +26,6 @@ const getArchivedDocuments = actionHandler('getArchivedDocuments', {
   params: (req) => ({ orderCode: req.query.orderCode || req.body?.orderCode }),
 });
 const checkDocumentsAndSaveStatus = actionHandler('checkDocumentsAndSaveStatus', { method: 'POST' });
-const updateNotifications = actionHandler('updateNotifications', { method: 'POST' });
 const moveCompletedOrder = actionHandler('moveCompletedOrder', {
   method: 'POST', params: (req) => ({ orderCode: req.query.orderCode || req.body?.orderCode }),
 });
@@ -82,11 +80,6 @@ async function uploadDocument(req, res) {
   } catch (error) { return sendServiceError(res, error, 'Không thể upload chứng từ'); }
 }
 
-async function sendNotification(req, res) {
-  try { return res.status(200).json(await notificationService.getPayload()); }
-  catch (error) { return sendServiceError(res, error, 'Không thể tải thông báo'); }
-}
-
 async function sendMissingDocumentEmail(req, res) {
   const { to_email, to_name, order_code, missing_docs } = req.body || {};
   if (!to_email || !order_code || !missing_docs) {
@@ -101,10 +94,6 @@ async function sendMissingDocumentEmail(req, res) {
 async function runCheckDocumentsJob(req, res) {
   try {
     const result = await appsScriptService.call('checkDocumentsAndSaveStatus', {}, 'POST');
-    if (result?.success !== false) await notificationService.refresh({
-      force: result?.changed === true, changed: result?.changed === true,
-      affectedOrders: result?.affectedOrders || [],
-    });
     return res?.json(result) || result;
   } catch (error) { if (res) return sendServiceError(res, error); throw error; }
 }
@@ -114,16 +103,13 @@ const updateAll = actionHandler('updateAll');
 const getPIFiles = actionHandler('getPIFiles');
 const getSheetSell = actionHandler('getSheetSell');
 const checkDriveAndUpdate = actionHandler('checkDriveAndUpdate');
-const updateStatusNotification = actionHandler('updateStatusNotification', { method: 'PUT' });
 
 module.exports = {
   getSheetTotal, getSheetSummary, getSheetNoti, getFolderById, getArchivedDocuments,
-  getSheetReturnItem, checkDocumentsAndSaveStatus, updateNotifications, moveCompletedOrder,
+  getSheetReturnItem, checkDocumentsAndSaveStatus, moveCompletedOrder,
   uploadDocument, editSummary,
   editReturnItem,
-  sendNotification, streamNotifications: notificationService.stream,
   sendMissingDocumentEmail, runCheckDocumentsJob,
   updateAll, getPIFiles, getSheetSell, checkDriveAndUpdate,
   runCheckDriveAndUpdateJob: runCheckDocumentsJob,
-  runNotificationCycle: runCheckDocumentsJob, updateStatusNotification,
 };

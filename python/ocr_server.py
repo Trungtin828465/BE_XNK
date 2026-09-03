@@ -6,6 +6,7 @@ import re
 import statistics
 import tempfile
 import unicodedata
+import shutil
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -24,6 +25,16 @@ HOST = os.getenv("PYTHON_OCR_HOST", "127.0.0.1")
 PORT = int(os.getenv("PYTHON_OCR_PORT", "8001"))
 MAX_MB = 15
 OCR_DPI = 300
+TESSERACT_CANDIDATES = [
+    os.getenv("tesseract_cmd", ""),
+    shutil.which("tesseract") or "",
+    r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+    r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+]
+for tesseract_path in TESSERACT_CANDIDATES:
+    if tesseract_path and Path(tesseract_path).exists():
+        pytesseract.pytesseract.tesseract_cmd = tesseract_path
+        break
 FIELDS = {
     "PI": ["Số HĐ", "Ngày HĐ PI", "Nhà cung cấp", "XUẤT XỨ", "Cảng đến", "Tên hàng", "Giá tổng"],
     "INV": ["INV", "Ngày INV"],
@@ -136,6 +147,13 @@ def ocr_file(path):
             if text:
                 texts.append(text); confidences.append(100); continue
             used_ocr = True
+            try:
+                pytesseract.get_tesseract_version()
+            except Exception as error:
+                raise RuntimeError(
+                    "Tesseract chưa được cài hoặc chưa có trong PATH. "
+                    "Hãy cài Tesseract OCR rồi khởi động lại Python server."
+                ) from error
             pixmap = page.get_pixmap(dpi=OCR_DPI, alpha=False)
             image = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples)
             try:
