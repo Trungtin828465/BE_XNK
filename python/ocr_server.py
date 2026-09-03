@@ -39,13 +39,13 @@ FIELDS = {
     "PI": ["Số HĐ", "Ngày HĐ PI", "Nhà cung cấp", "XUẤT XỨ", "Cảng đến", "Tên hàng", "Giá tổng"],
     "INV": ["INV", "Ngày INV"],
     "PKL": ["Số hộp", "Trọng lượng", "Trọng lượng cả bì"],
-    "BILL": ["BL NO.", "Số Container", "Hãng tàu", "ETD"],
+    "BILL": ["BL NO.", "Số Container", "Hãng tàu", "ETD", "Cảng đến"],
 }
 RULES = {
     "PI": "Số HĐ là mã PI/order; ngày là ngày Proforma Invoice; nhà cung cấp là công ty phát hành; XUẤT XỨ là quốc gia; Cảng đến lấy từ destination/POD/port of discharge; Giá tổng chỉ lấy TOTAL/TOTAL AMOUNT, không tự tính.",
     "INV": "INV chỉ lấy Invoice Number/Invoice No.; ngày lấy Invoice Date/Date. Không lấy Customer Code, VAT, Tax, EAN, ORDER, PI hoặc barcode nếu không được gán rõ.",
     "PKL": "Số hộp lấy tổng CAJAS/BOXES; Trọng lượng lấy NET WEIGHT; Trọng lượng cả bì lấy GROSS WEIGHT. Không tự tính, không lấy pallet/TARE.",
-    "BILL": "BL NO. là mã chứng từ vận tải; Số Container là mã container; Hãng tàu là carrier/shipping line, không phải tên tàu; ETD là ngày khởi hành, không lấy ETA.",
+    "BILL": "BL NO. là mã chứng từ vận tải; Số Container là mã container; Hãng tàu là carrier/shipping line, không phải tên tàu; ETD là ngày khởi hành, không lấy ETA; Cảng đến lấy từ Port of Discharge/POD, Final Destination hoặc Place of Delivery, không lấy Port of Loading.",
 }
 
 # Chuẩn hóa sau Agent 3, không đưa quy tắc này cho Agent tự suy đoán.
