@@ -199,7 +199,7 @@ Chỉ chọn giá trị có bằng chứng trong OCR và đã xuất hiện ở 
 Sau khi chọn đúng giá trị, hãy chuẩn hóa ngay trong kết quả cuối:
 - Hãng tàu phải dùng đúng name chuẩn trong danh sách này: {json.dumps(carrier_names, ensure_ascii=False)}. Nếu Agent 1/2 có tên đầy đủ hoặc biến thể alias của cùng hãng, chọn đúng name tương ứng; không chọn tên tàu/voyage thay cho hãng tàu.
 - Nhà cung cấp nếu khớp một nhà cung cấp trong danh sách chuẩn này thì trả đúng name: {json.dumps(supplier_names, ensure_ascii=False)}. Cụ thể 'Escorxador frigorific Rexach SL' phải ghi ngắn là 'Rexach'. Nếu không khớp danh sách, giữ tên nhà cung cấp có bằng chứng rõ trong OCR, không tự bịa tên viết tắt.
-- Cảng đến chuẩn hóa về đúng một trong: 'Cat Lai', 'Hai Phong', 'HCM' khi OCR thể hiện các biến thể tương ứng (kể cả khác dấu, HO CHI MINH CITY/HCMC, Cát Lai, Hải Phòng). Không lấy Port of Loading làm Cảng đến.
+- Cảng đến phải trả về tên tỉnh/thành chuẩn, không trả về tên cảng: 'Cat Lai', 'HCMC', 'Ho Chi Minh City', 'Cát Lai' hoặc cảng thuộc khu vực Hồ Chí Minh thì trả 'HCM'; 'Hai Phong' hoặc 'Hải Phòng' thì trả 'HP'. Không lấy Port of Loading làm Cảng đến và không trả về 'Cat Lai'/'Hai Phong' ở kết quả cuối.
 Việc chuẩn hóa được phép làm thay đổi cách viết của giá trị đã chọn, nhưng không được đổi sang một giá trị không có căn cứ.
 """
         compared = parse_json(ask(prompt(kind, text, compare_instruction, json.dumps({"agent1": extracted, "agent2": verified}, ensure_ascii=False)), models["compare"]), FIELDS[kind])
