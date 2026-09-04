@@ -69,13 +69,14 @@ CARRIER_NAMES = [
     {"name": "SINOKOR", "aliases": ["sinokor", "sinokor shipping"]},
 ]
 SUPPLIER_NAMES = [
-    {"name": "REIXACH", "aliases": ["Rexach","rexacha", "escorxador frigorific rexach sl"]},
-    {"name": "ELPOZO", "aliases": ["elpozo"]},
-    {"name": "TONNIES", "aliases": ["tonnies"]},
-    {"name": "SEARA", "aliases": ["seara"]},
-    {"name": "DLA&Associates Inc", "aliases": ["dla associates", "dla&associates"]},
-    {"name": "Vetracom", "aliases": ["vetracom"]},
-    {"name": "Patel", "aliases": ["patel"]},
+    {"name": "REIXACH", "country": "Spain", "aliases": ["Rexach", "rexacha", "escorxador frigorific rexach sl"]},
+    {"name": "ELPOZO", "country": "Spain", "aliases": ["elpozo"]},
+    {"name": "TONNIES", "country": "Germany", "aliases": ["tonnies"]},
+    {"name": "SEARA", "country": "Netherlands", "aliases": ["seara"]},
+    {"name": "DLA&Associates Inc", "country": "Canada", "aliases": ["dla associates", "dla&associates"]},
+    # Vetracom là đơn vị trung gian: XUẤT XỨ phải lấy từ nội dung hàng hóa trong PI.
+    {"name": "Vetracom", "country": None, "aliases": ["vetracom"]},
+    {"name": "Patel", "country": "Spain", "aliases": ["patel"]},
 ]
 
 
@@ -258,6 +259,13 @@ def ask(prompt, model):
 def prompt(kind, text, instruction, previous=""):
     fields = json.dumps(FIELDS[kind], ensure_ascii=False)
     layout_rules = """Nguyên tắc bắt buộc: OCR có thể đảo thứ tự dòng/cột, tách nhãn và giá trị thành nhiều dòng. Hãy dùng toàn bộ bố cục, căn chỉnh và quan hệ ô/cột của chứng từ; không chọn chỉ vì giá trị đứng trước/sau nhãn hoặc có định dạng giống nhau. Nếu không chứng minh được đúng nhãn/ngữ cảnh thì để trống."""
+    if kind == "PI":
+        supplier_countries = ", ".join(
+            f'{item["name"]} → {item["country"]}'
+            for item in SUPPLIER_NAMES
+            if item.get("country")
+        )
+        layout_rules += f""" Với PI, thông thường XUẤT XỨ là quốc gia của nhà cung cấp phát hành/sản xuất PI, không phải quốc gia nguồn gốc của nguyên liệu hoặc thịt. Nếu nhà cung cấp khớp danh sách chuẩn thì dùng quốc gia tương ứng: {supplier_countries}. NGOẠI LỆ BẮT BUỘC: Vetracom là đơn vị trung gian, không dùng quốc gia của Vetracom; khi nhà cung cấp là Vetracom, phải lấy XUẤT XỨ hàng hóa được ghi rõ trong chính file PI. Nếu file ghi thịt có nguồn gốc Russia thì trả Russia. Nếu không thấy rõ xuất xứ trong file thì để trống."""
     if kind == "PKL":
         layout_rules += """ Với PKL, tuyệt đối không đổi chỗ hai trọng lượng theo độ lớn: NET WEIGHT/PESO NETO là Trọng lượng, GROSS WEIGHT/PESO BRUTO là Trọng lượng cả bì. Số hộp chỉ lấy tổng CAJAS/BOXES, không lấy dòng chi tiết, pallet hoặc TARE."""
     return f"""{instruction}
@@ -291,12 +299,18 @@ def analyze(payload):
         verified = parse_json(ask(prompt(kind, text, "Bạn là Agent 2, đọc độc lập toàn bộ OCR rồi kiểm tra kết quả Agent 1. Chỉ giữ giá trị có bằng chứng rõ từ đúng nhãn, ô hoặc cột; nếu hai ứng viên chưa xác định được vai trò thì để trống.", json.dumps(extracted, ensure_ascii=False)), models["verify"]), FIELDS[kind])
         carrier_names = [carrier["name"] for carrier in CARRIER_NAMES]
         supplier_names = [supplier["name"] for supplier in SUPPLIER_NAMES]
+        supplier_countries = [
+            {"name": supplier["name"], "country": supplier["country"]}
+            for supplier in SUPPLIER_NAMES
+            if supplier.get("country")
+        ]
         compare_instruction = f"""Bạn là Agent 3, kiểm tra toàn bộ OCR và kết quả Agent 1/Agent 2 rồi trả về kết quả cuối.
 Chỉ chọn giá trị có bằng chứng trong OCR và đã xuất hiện ở Agent 1 hoặc Agent 2; không phát minh dữ liệu mới.
 Với PKL: Số hộp chỉ lấy tổng CAJAS/BOXES; Trọng lượng chỉ lấy NET WEIGHT/PESO NETO; Trọng lượng cả bì chỉ lấy GROSS WEIGHT/PESO BRUTO. Không được đổi chỗ NET và GROSS dù số nào lớn hơn, không tính toán và không lấy pallet/TARE.
 Sau khi chọn đúng giá trị, hãy chuẩn hóa ngay trong kết quả cuối:
 - Hãng tàu phải dùng đúng name chuẩn trong danh sách này: {json.dumps(carrier_names, ensure_ascii=False)}. Nếu Agent 1/2 có tên đầy đủ hoặc biến thể alias của cùng hãng, chọn đúng name tương ứng; không chọn tên tàu/voyage thay cho hãng tàu.
 - Nhà cung cấp nếu khớp một nhà cung cấp trong danh sách chuẩn này thì trả đúng name: {json.dumps(supplier_names, ensure_ascii=False)}. Cụ thể 'Escorxador frigorific Rexach SL' phải ghi ngắn là 'Rexach'. Nếu không khớp danh sách, giữ tên nhà cung cấp có bằng chứng rõ trong OCR, không tự bịa tên viết tắt.
+- Với PI, thông thường XUẤT XỨ là quốc gia của nhà cung cấp. Nếu nhà cung cấp khớp danh sách sau thì dùng đúng quốc gia tương ứng: {json.dumps(supplier_countries, ensure_ascii=False)}. NGOẠI LỆ: Vetracom là đơn vị trung gian nên không dùng quốc gia của Vetracom; phải lấy XUẤT XỨ hàng hóa được ghi rõ trong file PI. Ví dụ nếu OCR ghi thịt heo có nguồn gốc Russia thì trả Russia. Nếu không có thông tin rõ trong file thì để trống.
 - Cảng đến phải trả về tên tỉnh/thành chuẩn, không trả về tên cảng: 'Cat Lai', 'HCMC', 'Ho Chi Minh City', 'Cát Lai' hoặc cảng thuộc khu vực Hồ Chí Minh thì trả 'HCM'; 'Hai Phong' hoặc 'Hải Phòng' thì trả 'HP'. Không lấy Port of Loading làm Cảng đến và không trả về 'Cat Lai'/'Hai Phong' ở kết quả cuối.
 Việc chuẩn hóa được phép làm thay đổi cách viết của giá trị đã chọn, nhưng không được đổi sang một giá trị không có căn cứ.
 """
