@@ -65,7 +65,7 @@ CARRIER_NAMES = [
     {"name": "SINOKOR", "aliases": ["sinokor", "sinokor shipping"]},
 ]
 SUPPLIER_NAMES = [
-    {"name": "Rexach", "aliases": ["REIXACH","rexacha", "escorxador frigorific rexach sl"]},
+    {"name": "REIXACH", "aliases": ["Rexach","rexacha", "escorxador frigorific rexach sl"]},
     {"name": "ELPOZO", "aliases": ["elpozo"]},
     {"name": "TONNIES", "aliases": ["tonnies"]},
     {"name": "SEARA", "aliases": ["seara"]},
