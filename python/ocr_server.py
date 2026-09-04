@@ -5,7 +5,6 @@ import os
 import re
 import statistics
 import tempfile
-import unicodedata
 import shutil
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -48,10 +47,7 @@ RULES = {
     "BILL": "BL NO. là mã chứng từ vận tải; Số Container là mã container; Hãng tàu là carrier/shipping line, không phải tên tàu; ETD là ngày khởi hành, không lấy ETA; Cảng đến lấy từ Port of Discharge/POD, Final Destination hoặc Place of Delivery, không lấy Port of Loading.",
 }
 
-# Chuẩn hóa sau Agent 3, không đưa quy tắc này cho Agent tự suy đoán.
-SUPPLIER_SHORT_NAMES = {
-    "escorxador frigorific rexach sl": "Rexach",
-}
+# Danh sách tên chuẩn chỉ được cung cấp cho Agent 3 để đối chiếu theo ngữ cảnh OCR.
 CARRIER_NAMES = [
     {"name": "Hapag-Lloyd", "aliases": ["happ", "hapag", "hapag-lloyd", "hapag lloyd"]},
     {"name": "Maersk", "aliases": ["maersk", "a.p. moller", "apm"]},
@@ -67,6 +63,15 @@ CARRIER_NAMES = [
     {"name": "OOCL", "aliases": ["oocl", "oocl shipping"]},
     {"name": "PIL", "aliases": ["pil", "pacific international lines"]},
     {"name": "SINOKOR", "aliases": ["sinokor", "sinokor shipping"]},
+]
+SUPPLIER_NAMES = [
+    {"name": "Rexach", "aliases": ["REIXACH","rexacha", "escorxador frigorific rexach sl"]},
+    {"name": "ELPOZO", "aliases": ["elpozo"]},
+    {"name": "TONNIES", "aliases": ["tonnies"]},
+    {"name": "SEARA", "aliases": ["seara"]},
+    {"name": "DLA&Associates Inc", "aliases": ["dla associates", "dla&associates"]},
+    {"name": "Vetracom", "aliases": ["vetracom"]},
+    {"name": "Patel", "aliases": ["patel"]},
 ]
 
 
@@ -95,48 +100,6 @@ def date_value(value):
         day, month, year = match.groups()
         return f"{int(day):02d}/{int(month):02d}/{year}"
     return value
-
-
-def plain_text(value):
-    value = unicodedata.normalize("NFKD", str(value or ""))
-    value = "".join(char for char in value if not unicodedata.combining(char))
-    return re.sub(r"[^a-z0-9]+", " ", value.casefold()).strip()
-
-
-def canonical_supplier(value):
-    normalized = plain_text(value)
-    return SUPPLIER_SHORT_NAMES.get(normalized, value)
-
-
-def canonical_carrier(value):
-    normalized = plain_text(value)
-    if not normalized:
-        return value
-    for carrier in CARRIER_NAMES:
-        for alias in carrier["aliases"]:
-            alias_normalized = plain_text(alias)
-            # Tránh alias ngắn bị match nhầm trong tên công ty khác.
-            if normalized == alias_normalized or (len(alias_normalized) > 3 and alias_normalized in normalized):
-                return carrier["name"]
-    return value
-
-
-def canonical_port(value):
-    normalized = plain_text(value)
-    if all(part in normalized for part in ("cat lai", "hcmc", "vietnam")):
-        return "HCM"
-    return value
-
-
-def normalize_final_data(data):
-    data = dict(data)
-    if "Nhà cung cấp" in data:
-        data["Nhà cung cấp"] = canonical_supplier(data["Nhà cung cấp"])
-    if "Hãng tàu" in data:
-        data["Hãng tàu"] = canonical_carrier(data["Hãng tàu"])
-    if "Cảng đến" in data:
-        data["Cảng đến"] = canonical_port(data["Cảng đến"])
-    return data
 
 
 def ocr_file(path):
@@ -229,10 +192,19 @@ def analyze(payload):
                   "compare": os.getenv("open_router_model_compare", "openai/gpt-4o-mini")}
         extracted = parse_json(ask(prompt(kind, text, "Bạn là Agent 1, hãy trích xuất dữ liệu."), models["extract"]), FIELDS[kind])
         verified = parse_json(ask(prompt(kind, text, "Bạn là Agent 2, kiểm tra độc lập kết quả Agent 1 và chỉ giữ giá trị có bằng chứng rõ.", json.dumps(extracted, ensure_ascii=False)), models["verify"]), FIELDS[kind])
-        compared = parse_json(ask(prompt(kind, text, "Bạn là Agent 3, chọn giá trị đúng giữa Agent 1 và Agent 2, không phát minh giá trị mới.", json.dumps({"agent1": extracted, "agent2": verified}, ensure_ascii=False)), models["compare"]), FIELDS[kind])
-        final = {field: compared[field] if compared.get(field) and compared[field] in (extracted.get(field), verified.get(field)) else "" for field in FIELDS[kind]}
-        # Agent 3 quyết định giá trị gốc trước; chỉ sau đó mới rút gọn theo quy ước nghiệp vụ.
-        final = normalize_final_data(final)
+        carrier_names = [carrier["name"] for carrier in CARRIER_NAMES]
+        supplier_names = [supplier["name"] for supplier in SUPPLIER_NAMES]
+        compare_instruction = f"""Bạn là Agent 3, kiểm tra toàn bộ OCR và kết quả Agent 1/Agent 2 rồi trả về kết quả cuối.
+Chỉ chọn giá trị có bằng chứng trong OCR và đã xuất hiện ở Agent 1 hoặc Agent 2; không phát minh dữ liệu mới.
+Sau khi chọn đúng giá trị, hãy chuẩn hóa ngay trong kết quả cuối:
+- Hãng tàu phải dùng đúng name chuẩn trong danh sách này: {json.dumps(carrier_names, ensure_ascii=False)}. Nếu Agent 1/2 có tên đầy đủ hoặc biến thể alias của cùng hãng, chọn đúng name tương ứng; không chọn tên tàu/voyage thay cho hãng tàu.
+- Nhà cung cấp nếu khớp một nhà cung cấp trong danh sách chuẩn này thì trả đúng name: {json.dumps(supplier_names, ensure_ascii=False)}. Cụ thể 'Escorxador frigorific Rexach SL' phải ghi ngắn là 'Rexach'. Nếu không khớp danh sách, giữ tên nhà cung cấp có bằng chứng rõ trong OCR, không tự bịa tên viết tắt.
+- Cảng đến chuẩn hóa về đúng một trong: 'Cat Lai', 'Hai Phong', 'HCM' khi OCR thể hiện các biến thể tương ứng (kể cả khác dấu, HO CHI MINH CITY/HCMC, Cát Lai, Hải Phòng). Không lấy Port of Loading làm Cảng đến.
+Việc chuẩn hóa được phép làm thay đổi cách viết của giá trị đã chọn, nhưng không được đổi sang một giá trị không có căn cứ.
+"""
+        compared = parse_json(ask(prompt(kind, text, compare_instruction, json.dumps({"agent1": extracted, "agent2": verified}, ensure_ascii=False)), models["compare"]), FIELDS[kind])
+        # Agent 3 là nơi chọn và chuẩn hóa kết quả cuối; không hậu xử lý cứng bằng Python.
+        final = {field: compared.get(field, "") for field in FIELDS[kind]}
         confidence = min(extracted.get("_confidence", 0), verified.get("_confidence", 0), compared.get("_confidence", 0))
         return {"success": True, "documentType": "BL" if kind == "BILL" else kind, "fileName": filename,
                 "data": final, "_confidence": confidence, "_reason": compared.get("_reason", ""),
