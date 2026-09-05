@@ -8,5 +8,6 @@ const {
 
 router.post('/login', login);
 router.post('/activity-logs', activityLogController.createLog);
+router.get('/activity-logs', activityLogController.getLogs);
 
 module.exports = router;
