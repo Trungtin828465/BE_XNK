@@ -19,6 +19,8 @@ function actionHandler(action, { method = 'GET', params = () => ({}) } = {}) {
 const getSheetTotal = actionHandler('getSheetTotal');
 const getSheetSummary = actionHandler('getSheetSummary');
 const getSheetNoti = actionHandler('getSheetNoti');
+const markAllNotificationsRead = actionHandler('markAllNotificationsRead', { method: 'POST' });
+const markNotificationRead = actionHandler('markNotificationRead', { method: 'POST' });
 const getFolderById = actionHandler('getFolderById', {
   params: (req) => ({ folderId: req.query.folderId || req.query.id }),
 });
@@ -64,7 +66,7 @@ async function editReturnItem(req, res) {
 }
 
 async function uploadDocument(req, res) {
-  const { orderCode, documentCode, fileName, fileData } = req.body || {};
+  const { orderCode, documentCode, fileName, fileData, mimeType } = req.body || {};
   if (!orderCode || !documentCode || !fileName || !fileData) {
     return res.status(400).json({
       success: false,
@@ -73,10 +75,37 @@ async function uploadDocument(req, res) {
   }
 
   try {
-    const result = await appsScriptService.call('uploadDocument', {}, 'POST', {
+    const uploadResult = await appsScriptService.call('uploadDocument', {}, 'POST', {
       action: 'uploadDocument', orderCode, documentCode, fileName, fileData,
+      ...(mimeType ? { mimeType } : {}),
     });
-    return res.status(200).json(result);
+
+    // Apps Script là nơi cập nhật STATUS_SHEET_NOTI và quyết định status.
+    // Chỉ đồng bộ lại dữ liệu khi upload thực sự thành công.
+    if (!uploadResult || uploadResult.success !== true) {
+      return res.status(200).json(uploadResult);
+    }
+
+    const [totalResult, notificationResult] = await Promise.allSettled([
+      appsScriptService.getSheetTotal(),
+      appsScriptService.getSheetNoti(),
+    ]);
+
+    const sync = {
+      sheetTotal: totalResult.status === 'fulfilled' ? totalResult.value : null,
+      notifications: notificationResult.status === 'fulfilled' ? notificationResult.value : null,
+      errors: [totalResult, notificationResult]
+        .filter((item) => item.status === 'rejected')
+        .map((item) => item.reason?.message || 'Không thể đồng bộ dữ liệu'),
+    };
+
+    return res.status(200).json({
+      ...uploadResult,
+      sync,
+      message: sync.errors.length > 0
+        ? 'Upload thành công nhưng đồng bộ dữ liệu chưa hoàn tất'
+        : uploadResult.message || 'Upload chứng từ và đồng bộ notification thành công',
+    });
   } catch (error) { return sendServiceError(res, error, 'Không thể upload chứng từ'); }
 }
 
@@ -105,7 +134,9 @@ const getSheetSell = actionHandler('getSheetSell');
 const checkDriveAndUpdate = actionHandler('checkDriveAndUpdate');
 
 module.exports = {
-  getSheetTotal, getSheetSummary, getSheetNoti, getFolderById, getArchivedDocuments,
+  getSheetTotal, getSheetSummary, getSheetNoti,
+  markAllNotificationsRead, markNotificationRead,
+  getFolderById, getArchivedDocuments,
   getSheetReturnItem, checkDocumentsAndSaveStatus, moveCompletedOrder,
   uploadDocument, editSummary,
   editReturnItem,

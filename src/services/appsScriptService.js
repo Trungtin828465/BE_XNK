@@ -58,6 +58,8 @@ const appsScriptService = {
   getSheetTotal: () => callAppsScript('getSheetTotal'),
   getSheetSummary: () => callAppsScript('getSheetSummary'),
   getSheetNoti: () => callAppsScript('getSheetNoti'),
+  markAllNotificationsRead: (method = 'POST') => callAppsScript('markAllNotificationsRead', {}, method),
+  markNotificationRead: (method = 'POST') => callAppsScript('markNotificationRead', {}, method),
   getFolderById: (folderId) => callAppsScript('getFolderById', { folderId, id: folderId }),
   getArchivedDocuments: (orderCode) => callAppsScript('getArchivedDocuments', { orderCode }),
   checkDocumentsAndSaveStatus: (method) => callAppsScript('checkDocumentsAndSaveStatus', {}, method),
