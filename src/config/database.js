@@ -11,4 +11,13 @@ const pool = new Pool({
   options: '-c search_path=public'
 });
 
+// Kiểm tra kết nối PostgreSQL
+pool.query('SELECT NOW()', (err, result) => {
+    if (err) {
+        console.error('❌ PostgreSQL connection failed:', err.message);
+    } else {
+        console.log('✅ PostgreSQL connected:', result.rows[0]);
+    }
+});
+
 module.exports = pool;
