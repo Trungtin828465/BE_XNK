@@ -44,6 +44,12 @@ FIELDS = {
     "PKL": ["Số hộp", "Trọng lượng", "Trọng lượng cả bì"],
     "BILL": ["BL NO.", "Số Container", "Hãng tàu", "ETD", "Cảng đến"],
 }
+CODE_FIELDS = {
+    "PI": ["Số HĐ"],
+    "INV": ["INV"],
+    "PKL": [],
+    "BILL": ["BL NO.", "Số Container"],
+}
 RULES = {
     "PI": "Số HĐ là mã PI/order; ngày là ngày Proforma Invoice; nhà cung cấp là công ty phát hành; XUẤT XỨ là quốc gia; Cảng đến lấy từ destination/POD/port of discharge; Giá tổng chỉ lấy TOTAL/TOTAL AMOUNT, không tự tính.",
     "INV": "INV chỉ lấy Invoice Number/Invoice No.; ngày lấy Invoice Date/Date. Không lấy Customer Code, VAT, Tax, EAN, ORDER, PI hoặc barcode nếu không được gán rõ.",
@@ -119,14 +125,14 @@ def prepare_image(image):
     """Giới hạn kích thước ảnh để tránh Tesseract xử lý quá nặng."""
     pixels = image.width * image.height
     if pixels <= MAX_OCR_PIXELS:
-        return image
+        return image, 1, 1
     scale = (MAX_OCR_PIXELS / pixels) ** 0.5
     size = (max(1, int(image.width * scale)), max(1, int(image.height * scale)))
-    return image.resize(size, Image.Resampling.LANCZOS)
+    return image.resize(size, Image.Resampling.LANCZOS), image.width / size[0], image.height / size[1]
 
 
-def ocr_image(image):
-    """OCR nhưng vẫn giữ dòng và vị trí tương đối của bảng chứng từ."""
+def ocr_image(image, scale_x=1, scale_y=1):
+    """OCR kèm tọa độ gốc, giữ dòng và vị trí tương đối của bảng chứng từ."""
     result = pytesseract.image_to_data(
         image,
         lang=ocr_languages(),
@@ -144,8 +150,12 @@ def ocr_image(image):
             result["par_num"][index],
             result["line_num"][index],
         )
-        line = lines.setdefault(key, {"left": result["left"][index], "words": []})
-        line["words"].append(word)
+        left = result["left"][index] * scale_x
+        top = result["top"][index] * scale_y
+        width = result["width"][index] * scale_x
+        height = result["height"][index] * scale_y
+        line = lines.setdefault(key, {"left": left, "top": top, "words": []})
+        line["words"].append({"value": word, "left": left, "top": top, "width": width, "height": height})
         try:
             confidence = float(result["conf"][index])
             if confidence >= 0:
@@ -154,11 +164,15 @@ def ocr_image(image):
             pass
 
     rendered = []
-    width = max(image.width, 1)
     for line in lines.values():
-        # Giữ một phần thông tin cột để Agent nhận diện đúng NET/GROSS.
-        indent = " " * min(100, max(0, int(line["left"] / width * 100)))
-        rendered.append(indent + " ".join(line["words"]))
+        words = sorted(line["words"], key=lambda item: item["left"])
+        rendered.append(
+            f'LINE x={line["left"]:.0f} y={line["top"]:.0f}: '
+            + " ".join(
+                f'[{item["left"]:.0f},{item["top"]:.0f},{item["width"]:.0f},{item["height"]:.0f}] {item["value"]}'
+                for item in words
+            )
+        )
     return "\n".join(rendered), statistics.mean(confidences) if confidences else 0
 
 
@@ -184,25 +198,33 @@ def pdf_page_text_a4(page):
     for row in rows:
         if previous_y is not None:
             rendered.extend([""] * min(5, max(0, round((row["y"] - previous_y) / 12) - 1)))
-        line = [" "] * 120
-        cursor = 0
-        for x0, value in sorted(row["words"], key=lambda item: item[0]):
-            position = min(110, max(0, round(x0 / page_width * 110)))
-            if position <= cursor:
-                position = cursor + 1
-            for char in value:
-                while position >= len(line):
-                    line.append(" ")
-                line[position] = char
-                position += 1
-            cursor = position
-        rendered.append("".join(line).rstrip())
+        rendered.append(
+            "PDF_LINE "
+            + " ".join(
+                f'[x={x0:.1f},y={row["y"]:.1f}] {value}'
+                for x0, value in sorted(row["words"], key=lambda item: item[0])
+            )
+        )
         previous_y = row["y"]
     return "\n".join(rendered).strip()
 
 
 def ocr_file(path):
     texts, confidences, used_ocr = [], [], False
+    if Path(path).suffix.lower() != ".pdf":
+        used_ocr = True
+        try:
+            pytesseract.get_tesseract_version()
+        except Exception as error:
+            raise RuntimeError("Tesseract chưa được cài hoặc chưa có trong PATH.") from error
+        with Image.open(path) as image:
+            image = image.convert("RGB")
+            prepared_image, scale_x, scale_y = prepare_image(image)
+            text, confidence = ocr_image(prepared_image, scale_x, scale_y)
+        if not text.strip():
+            raise ValueError("Không đọc được nội dung từ ảnh")
+        return text, confidence, used_ocr
+
     with pymupdf.open(path) as pdf:
         for page in pdf:
             text = pdf_page_text_a4(page)
@@ -218,7 +240,8 @@ def ocr_file(path):
                 ) from error
             pixmap = page.get_pixmap(dpi=OCR_DPI, alpha=False)
             image = Image.open(BytesIO(pixmap.tobytes("png"))).convert("RGB")
-            page_text, page_confidence = ocr_image(prepare_image(image))
+            prepared_image, scale_x, scale_y = prepare_image(image)
+            page_text, page_confidence = ocr_image(prepared_image, scale_x, scale_y)
             texts.append(page_text); confidences.append(page_confidence)
     text = "\n\n--- TRANG/ẢNH TIẾP THEO ---\n\n".join(texts).strip()
     if not text: raise ValueError("Không đọc được nội dung từ file")
@@ -244,6 +267,22 @@ def parse_json(content, fields):
     return result
 
 
+def validate_result(result, kind, source_text):
+    """Kiểm tra kết quả của Agent duy nhất bằng Python."""
+    if not source_text.strip():
+        raise ValueError("Không có layout OCR để kiểm tra kết quả")
+    validated = {field: str(result.get(field, "") or "").strip() for field in FIELDS[kind]}
+    for field in CODE_FIELDS[kind]:
+        # Mã luôn là text, giữ nguyên số 0 đầu và ký tự đặc biệt.
+        validated[field] = str(result.get(field, "") or "").strip()
+    try:
+        validated["_confidence"] = max(0, min(100, float(result.get("_confidence", 0) or 0)))
+    except (TypeError, ValueError):
+        validated["_confidence"] = 0
+    validated["_reason"] = str(result.get("_reason", "") or "").strip()
+    return validated
+
+
 def ask(prompt, model):
     response = requests.post(
         "https://openrouter.ai/api/v1/chat/completions",
@@ -258,6 +297,7 @@ def ask(prompt, model):
 
 def prompt(kind, text, instruction, previous=""):
     fields = json.dumps(FIELDS[kind], ensure_ascii=False)
+    code_rules = """Các trường mã phải trả về JSON string, không bao giờ trả về number. Giữ nguyên số 0 ở đầu, dấu gạch, dấu chấm, dấu gạch chéo và mọi ký tự trong mã. Ví dụ mã 00001 phải trả \"00001\", không trả 1."""
     layout_rules = """Nguyên tắc bắt buộc: OCR có thể đảo thứ tự dòng/cột, tách nhãn và giá trị thành nhiều dòng. Hãy dùng toàn bộ bố cục, căn chỉnh và quan hệ ô/cột của chứng từ; không chọn chỉ vì giá trị đứng trước/sau nhãn hoặc có định dạng giống nhau. Nếu không chứng minh được đúng nhãn/ngữ cảnh thì để trống."""
     if kind == "PI":
         supplier_countries = ", ".join(
@@ -272,6 +312,7 @@ def prompt(kind, text, instruction, previous=""):
 Loại chứng từ: {kind}. Trả về JSON hợp lệ, không markdown, đúng các key {fields}, _confidence, _reason.
 Chỉ lấy giá trị có trong OCR; không đoán, không tính, không sửa mã. Nếu không chắc chắn trả chuỗi rỗng. Giữ số 0 đầu và ký tự. Chỉ đổi ngày sang DD/MM/YYYY.
 Quy tắc: {RULES[kind]}
+{code_rules}
 {layout_rules}
 Kết quả trước đó (chỉ dùng để kiểm tra): {previous}
 NỘI DUNG OCR:
@@ -281,8 +322,10 @@ NỘI DUNG OCR:
 def analyze(payload):
     kind = doc_type(payload.get("documentType"))
     filename = str(payload.get("fileName") or "document.pdf")
-    if not filename.lower().endswith(".pdf"): raise ValueError("Chỉ hỗ trợ file PDF")
-    encoded = re.sub(r"^data:application/pdf;base64,", "", str(payload.get("fileData") or "").strip(), flags=re.I)
+    allowed_extensions = {".pdf", ".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff"}
+    if Path(filename).suffix.lower() not in allowed_extensions:
+        raise ValueError("OCR chỉ hỗ trợ PDF, PNG, JPG, JPEG, WEBP, TIF hoặc TIFF")
+    encoded = re.sub(r"^data:[^;]+;base64,", "", str(payload.get("fileData") or "").strip(), flags=re.I)
     if not encoded: raise ValueError("Thiếu fileData")
     try: raw = base64.b64decode(re.sub(r"\s", "", encoded), validate=True)
     except Exception as error: raise ValueError(f"fileData không phải Base64 hợp lệ: {error}")
@@ -292,11 +335,7 @@ def analyze(payload):
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temp:
             temp.write(raw); temp_path = temp.name
         text, ocr_confidence, used_ocr = ocr_file(temp_path)
-        models = {"extract": os.getenv("open_router_model_extract", "openai/gpt-4.1-mini"),
-                  "verify": os.getenv("open_router_model_verify", "openai/gpt-4o-mini"),
-                  "compare": os.getenv("open_router_model_compare", "openai/gpt-4o-mini")}
-        extracted = parse_json(ask(prompt(kind, text, "Bạn là Agent 1, hãy trích xuất dữ liệu."), models["extract"]), FIELDS[kind])
-        verified = parse_json(ask(prompt(kind, text, "Bạn là Agent 2, đọc độc lập toàn bộ OCR rồi kiểm tra kết quả Agent 1. Chỉ giữ giá trị có bằng chứng rõ từ đúng nhãn, ô hoặc cột; nếu hai ứng viên chưa xác định được vai trò thì để trống.", json.dumps(extracted, ensure_ascii=False)), models["verify"]), FIELDS[kind])
+        model = os.getenv("open_router_model_ocr", "openai/gpt-4.1-mini")
         carrier_names = [carrier["name"] for carrier in CARRIER_NAMES]
         supplier_names = [supplier["name"] for supplier in SUPPLIER_NAMES]
         supplier_countries = [
@@ -304,8 +343,8 @@ def analyze(payload):
             for supplier in SUPPLIER_NAMES
             if supplier.get("country")
         ]
-        compare_instruction = f"""Bạn là Agent 3, kiểm tra toàn bộ OCR và kết quả Agent 1/Agent 2 rồi trả về kết quả cuối.
-Chỉ chọn giá trị có bằng chứng trong OCR và đã xuất hiện ở Agent 1 hoặc Agent 2; không phát minh dữ liệu mới.
+        single_agent_instruction = f"""Bạn là Agent OCR duy nhất, đọc trực tiếp toàn bộ layout OCR và trả về kết quả cuối.
+Chỉ lấy giá trị có bằng chứng trong nội dung OCR; không phát minh, tính toán hoặc điền dữ liệu không chắc chắn.
 Với PKL: Số hộp chỉ lấy tổng CAJAS/BOXES; Trọng lượng chỉ lấy NET WEIGHT/PESO NETO; Trọng lượng cả bì chỉ lấy GROSS WEIGHT/PESO BRUTO. Không được đổi chỗ NET và GROSS dù số nào lớn hơn, không tính toán và không lấy pallet/TARE.
 Sau khi chọn đúng giá trị, hãy chuẩn hóa ngay trong kết quả cuối:
 - Hãng tàu phải dùng đúng name chuẩn trong danh sách này: {json.dumps(carrier_names, ensure_ascii=False)}. Nếu Agent 1/2 có tên đầy đủ hoặc biến thể alias của cùng hãng, chọn đúng name tương ứng; không chọn tên tàu/voyage thay cho hãng tàu.
@@ -314,13 +353,13 @@ Sau khi chọn đúng giá trị, hãy chuẩn hóa ngay trong kết quả cuố
 - Cảng đến phải trả về tên tỉnh/thành chuẩn, không trả về tên cảng: 'Cat Lai', 'HCMC', 'Ho Chi Minh City', 'Cát Lai' hoặc cảng thuộc khu vực Hồ Chí Minh thì trả 'HCM'; 'Hai Phong' hoặc 'Hải Phòng' thì trả 'HP'. Không lấy Port of Loading làm Cảng đến và không trả về 'Cat Lai'/'Hai Phong' ở kết quả cuối.
 Việc chuẩn hóa được phép làm thay đổi cách viết của giá trị đã chọn, nhưng không được đổi sang một giá trị không có căn cứ.
 """
-        compared = parse_json(ask(prompt(kind, text, compare_instruction, json.dumps({"agent1": extracted, "agent2": verified}, ensure_ascii=False)), models["compare"]), FIELDS[kind])
-        # Agent 3 là nơi chọn và chuẩn hóa kết quả cuối; không hậu xử lý cứng bằng Python.
-        final = {field: compared.get(field, "") for field in FIELDS[kind]}
-        confidence = min(extracted.get("_confidence", 0), verified.get("_confidence", 0), compared.get("_confidence", 0))
+        extracted = parse_json(ask(prompt(kind, text, single_agent_instruction), model), FIELDS[kind])
+        final = validate_result(extracted, kind, text)
+        confidence = final.get("_confidence", 0)
         return {"success": True, "documentType": "BL" if kind == "BILL" else kind, "fileName": filename,
-                "data": final, "_confidence": confidence, "_reason": compared.get("_reason", ""),
-                "ocrConfidence": ocr_confidence, "usedLocalOcr": used_ocr, "models": models}
+                "data": {field: final.get(field, "") for field in FIELDS[kind]}, "_confidence": confidence,
+                "_reason": final.get("_reason", ""), "ocrConfidence": ocr_confidence,
+                "usedLocalOcr": used_ocr, "models": {"ocr": model}}
     finally:
         if temp_path: Path(temp_path).unlink(missing_ok=True)
 

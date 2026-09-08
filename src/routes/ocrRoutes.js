@@ -7,8 +7,9 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 15 * 1024 * 1024 },
   fileFilter: (req, file, callback) => {
-    const valid = file.mimetype === 'application/pdf' || /\.pdf$/i.test(file.originalname);
-    callback(valid ? null : new Error('OCR chỉ hỗ trợ file PDF.'), valid);
+    const validMimeTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp', 'image/tiff'];
+    const valid = validMimeTypes.includes(file.mimetype) || /\.(pdf|png|jpe?g|webp|tiff?)$/i.test(file.originalname);
+    callback(valid ? null : new Error('OCR chỉ hỗ trợ PDF, PNG, JPG, JPEG, WEBP, TIF hoặc TIFF.'), valid);
   },
 });
 
