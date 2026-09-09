@@ -174,3 +174,187 @@ module.exports = {
   connectToChrome,
   attachSafeDialogHandler,
 };
+
+
+// const { chromium } = require('playwright');
+
+// const CMA_TRACKING_URL = 'https://www.cma-cgm.com/ebusiness/tracking';
+// const PAGE_TIMEOUT = 60000;
+
+// function hasCmaCaptcha(page) {
+//   return page.frames().some((frame) =>
+//     frame.url().toLowerCase().includes('captcha-delivery.com'),
+//   );
+// }
+
+// function attachSafeDialogHandler(page) {
+//   page.on('dialog', async (dialog) => {
+//     try {
+//       await dialog.dismiss();
+//     } catch (error) {
+//       // Dialog có thể đã tự đóng trước khi Playwright xử lý.
+//       if (!/No dialog is showing/i.test(error.message || '')) {
+//         console.warn(
+//           '[BROWSER_DIALOG] Không thể đóng dialog:',
+//           error.message,
+//         );
+//       }
+//     }
+//   });
+
+//   return page;
+// }
+
+// async function createCmaBrowser() {
+//   return chromium.launch({
+//     headless: true,
+
+//     args: [
+//       '--disable-blink-features=AutomationControlled',
+//       '--disable-dev-shm-usage',
+//       '--no-sandbox',
+//     ],
+//   });
+// }
+
+// async function openCmaTracking(req, res) {
+//   const bl = String(req.params.bl || '').trim();
+
+//   if (!bl) {
+//     return res.status(400).json({
+//       success: false,
+//       code: 'BL_REQUIRED',
+//       message: 'Vui lòng cung cấp mã BL.',
+//     });
+//   }
+
+//   let browser;
+
+//   try {
+//     // 1. Chạy Chromium ngầm, không mở cửa sổ Chrome
+//     browser = await createCmaBrowser();
+
+//     // 2. Tạo browser context
+//     const context = await browser.newContext({
+//       viewport: {
+//         width: 1440,
+//         height: 900,
+//       },
+
+//       locale: 'en-US',
+
+//       userAgent:
+//         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ' +
+//         'AppleWebKit/537.36 (KHTML, like Gecko) ' +
+//         'Chrome/140.0.0.0 Safari/537.36',
+//     });
+
+//     // 3. Tạo tab
+//     const page = attachSafeDialogHandler(await context.newPage());
+
+//     // 4. Mở CMA CGM
+//     await page.goto(CMA_TRACKING_URL, {
+//       waitUntil: 'domcontentloaded',
+//       timeout: PAGE_TIMEOUT,
+//     });
+
+//     // 5. Tìm ô nhập BL
+//     const referenceInput = page.locator('#Reference');
+
+//     try {
+//       await referenceInput.waitFor({
+//         state: 'visible',
+//         timeout: PAGE_TIMEOUT,
+//       });
+//     } catch (error) {
+//       if (hasCmaCaptcha(page)) {
+//         return res.status(403).json({
+//           success: false,
+//           code: 'CMA_CAPTCHA_REQUIRED',
+//           message:
+//             'CMA CGM yêu cầu CAPTCHA. Chế độ headless không thể để người dùng xử lý CAPTCHA trực tiếp.',
+//         });
+//       }
+
+//       throw error;
+//     }
+
+//     // 6. Điền BL
+//     await referenceInput.fill(bl);
+
+//     // Một số website cần event input/change
+//     await referenceInput.evaluate((element) => {
+//       element.dispatchEvent(
+//         new Event('input', {
+//           bubbles: true,
+//         }),
+//       );
+
+//       element.dispatchEvent(
+//         new Event('change', {
+//           bubbles: true,
+//         }),
+//       );
+//     });
+
+//     // 7. Click Tracking
+//     const trackingButton = page.locator('#btnTracking');
+
+//     await trackingButton.waitFor({
+//       state: 'visible',
+//       timeout: PAGE_TIMEOUT,
+//     });
+
+//     await trackingButton.click({
+//       timeout: PAGE_TIMEOUT,
+//     });
+
+//     // Chờ website xử lý
+//     await page.waitForTimeout(3000);
+
+//     // Kiểm tra captcha sau khi click
+//     if (hasCmaCaptcha(page)) {
+//       return res.status(403).json({
+//         success: false,
+//         code: 'CMA_CAPTCHA_REQUIRED',
+//         message:
+//           'CMA CGM yêu cầu CAPTCHA sau khi gửi mã BL.',
+//       });
+//     }
+
+//     return res.status(200).json({
+//       success: true,
+//       carrier: 'CMA CGM',
+//       bl,
+//       message: 'Đã gửi mã BL lên CMA CGM bằng Playwright headless.',
+//     });
+//   } catch (error) {
+//     console.error('[CMA_TRACKING_ERROR]', error);
+
+//     return res.status(500).json({
+//       success: false,
+//       code: 'CMA_TRACKING_FAILED',
+//       message: 'Không thể tracking CMA CGM.',
+//       error: error.message,
+//     });
+//   } finally {
+//     // Rất quan trọng:
+//     // request xong phải đóng browser
+//     if (browser) {
+//       try {
+//         await browser.close();
+//       } catch (error) {
+//         console.warn(
+//           '[CMA_BROWSER_CLOSE_ERROR]',
+//           error.message,
+//         );
+//       }
+//     }
+//   }
+// }
+
+// module.exports = {
+//   openCmaTracking,
+//   createCmaBrowser,
+//   attachSafeDialogHandler,
+// };
