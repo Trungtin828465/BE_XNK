@@ -5,6 +5,7 @@ const cors = require('cors');
 const appsScriptRoutes = require('./routes/appsScriptRoutes');
 const authRouter = require('./routes/authRouter');
 const ocrRoutes = require('./routes/ocrRoutes');
+const evergreenTrackingRoutes = require('./routes/evergreenTrackingRoutes');
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -21,6 +22,7 @@ app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '25mb' }));
 app.use('/api', appsScriptRoutes);
 app.use('/api/auth', authRouter);
 app.use('/api/ocr', ocrRoutes);
+app.use('/api/tracking/evergreen', evergreenTrackingRoutes);
 
 app.use((req, res) => {
   res.status(404).json({
@@ -29,6 +31,10 @@ app.use((req, res) => {
   });
 });
 
-app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
-});
+if (require.main === module) {
+  app.listen(port, () => {
+    console.log(`Server running at http://localhost:${port}`);
+  });
+}
+
+module.exports = app;
