@@ -5,8 +5,7 @@
   "main": "src/app.js",
   "scripts": {
     "start": "node src/app.js",
-    "dev": "node --watch src/app.js",
-    "test": "node --test"
+    "dev": "node --watch src/app.js"
   },
   "keywords": [],
   "author": "",
@@ -21,6 +20,7 @@
     "express": "^5.2.1",
     "firebase-admin": "^14.2.0",
     "multer": "^2.2.0",
-    "pg": "^8.23.0"
+    "pg": "^8.23.0",
+    "playwright": "^1.62.1"
   }
 }
